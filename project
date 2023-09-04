@@ -1,0 +1,139 @@
+RGB = imread('Y2.jpg');
+imshow(RGB);
+
+I = im2gray(RGB);
+I2 = imadjust(I);
+[maxval,idx]=max(I2(:));
+[row,col]=ind2sub(size(I2), idx);
+%low_pixel=min(I2(:));
+
+someThreshold = 160;
+binaryImage = I2 < someThreshold;
+labeledImage = bwlabel(binaryImage);
+measurements = regionprops(labeledImage, I2, 'MaxIntensity');
+maxIntensities = [measurements.MaxIntensity];
+
+%imshow(binaryImage);
+
+[minval,idx]=min(binaryImage(:));
+[row,col]=ind2sub(size(I2), idx);
+
+J2 = grayconnected(I2, row, col);
+%threshold = graythresh(I2);
+%bw=im2bw(I2,threshold);
+
+%imshow(labeloverlay(labeledImage,J2))
+
+%imshow(bw)
+impixelinfo;
+
+bw = bwareafilt(binaryImage, [1000, inf]);
+imshow(bw);
+
+[M,n]=bwlabel(bw);
+stats=regionprops(M,'Solidity','Area');
+density=[stats.Solidity];
+area=[stats.Area];
+densityThreshold = 0.5;
+high_dense_area=density>densityThreshold;
+%be detected.
+max_area=max(area(high_dense_area));
+tumor_label=find(area==max_area);
+tumor=ismember(M,tumor_label);
+se=strel('disk',5);
+tumor=imdilate(tumor,se);
+imshow(tumor);
+
+se = strel('disk',1);
+bw = imclose(bw,se);
+imshow(bw);
+
+%bw = imfill(bw,'holes');
+[minval,idx]=min(tumor(:));
+[row,col]=ind2sub(size(tumor), idx);
+
+measurements1 = regionprops(J2, 'Centroid');
+centroids = cat(1,measurements1.Centroid);
+
+labeledImage = bwlabel(bw);
+J3 = grayconnected(labeledImage, row, col);
+imshow(labeloverlay(labeledImage,J3));
+
+imshow(bw);
+binaryImage1 = bw <= 0;
+labeledImage = bwlabel(binaryImage1);
+intensity_value = bw(row, col);
+
+impixelinfo;
+
+[B,L] = bwboundaries(bw, 'noholes');
+
+labeledImage = bwlabel(bw);
+
+J4 = grayconnected(labeledImage, row, col);
+imshow(labeloverlay(labeledImage,J4));
+
+BW2 = bwpropfilt(J4,'Area',10);
+
+imshow(BW2);
+%title('Objects with the Largest Areas')
+
+stats = regionprops(BW2,'Area','Centroid');
+
+
+%labeledImage = bwlabel(bw);
+%J4 = grayconnected(labeledImage, 88, 99);
+%imshow(labeloverlay(labeledImage,J4));
+[B]=bwboundaries(BW2,'noholes');
+figure;
+imshow(I,[]);
+hold on
+for i=1:length(B)
+    plot(B{i}(:,2),B{i}(:,1), 'blue' ,'linewidth',1.45);
+end
+title('Detected Tumor');
+hold off;
+
+for k = 1:length(B)
+
+
+  boundary = B{k};
+
+  sq2 = diff(boundary).^2;    
+  perimeter = sum(sqrt(sum(sq2,2)));
+  area = stats(k).Area;
+  threshold = 0.94;
+  metric = 4*pi*area/perimeter^2;
+  metric_string = sprintf('%2.2f',metric);
+
+
+  if metric > threshold
+    centroid = stats(k).Centroid;
+    plot(centroid(1),centroid(2),'ko');
+  end
+  
+  text(boundary(1,2)-35,boundary(1,1)+13,metric_string,'Color','blue',...
+       'FontSize',14,'FontWeight','bold')
+  
+end
+
+if area > 4800
+    Type = "Stage 4";
+elseif area <= 4800 && area > 3000
+    Type = "Stage 3";
+elseif area <= 3000 && area > 1500
+    Type = "Stage 2";
+elseif area <= 1500 && area > 400
+    Type = "Stage 1";
+end
+
+
+
+if metric < 0.50
+    x = "Glioma - ";
+    title(x + Type);
+else
+    y = "Meningioma - ";
+    title(y + Type);
+end
+hold on;
